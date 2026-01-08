@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QA Intelligence Dashboard - Test Metrics & KPIs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            overflow-x: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+        
+        .metric-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.25);
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            padding: 20px;
+        }
+        
+        .upload-zone {
+            border: 3px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone.dragover {
+            border-color: #667eea;
+            background-color: #f0f4ff;
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .trend-up {
+            color: #10b981;
+        }
+        
+        .trend-down {
+            color: #ef4444;
+        }
+        
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .data-table {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .data-table::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .data-table::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        
+        .data-table::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        
+        .data-table::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        
+        .badge-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        
+        .badge-danger {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-600 to-indigo-700 min-h-screen">
+    
+    <!-- Header -->
+    <header class="glass-panel shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-chart-line text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-extrabold text-gray-800">QA Intelligence Dashboard</h1>
+                        <p class="text-sm text-gray-600">Real-time Test Metrics & KPIs</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="showUploadModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md flex items-center space-x-2">
+                        <i class="fas fa-upload"></i>
+                        <span>Upload Data</span>
+                    </button>
+                    <button onclick="exportDashboard()" class="bg-white text-gray-700 px-6 py-2 rounded-lg font-semibold hover:bg-gray-50 transition-all shadow-md flex items-center space-x-2 border border-gray-200">
+                        <i class="fas fa-download"></i>
+                        <span>Export</span>
+                    </button>
+                    <button onclick="resetDashboard()" class="bg-white text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-50 transition-all shadow-md">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <div class="container mx-auto px-6 py-8">
+        
+        <!-- Key Metrics Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+            
+            <!-- Test Case Pass Rate -->
+            <div class="glass-panel rounded-2xl p-6 metric-card">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="tooltip">
+                        <i class="fas fa-check-circle text-green-500 text-2xl"></i>
+                        <span class="tooltiptext">Percentage of test cases that pass successfully</span>
+                    </div>
+                    <span id="passRateTrend" class="text-sm font-semibold trend-up">
+                        <i class="fas fa-arrow-up"></i> 5.2%
+                    </span>
+                </div>
+                <h3 class="text-gray-600 text-sm font-semibold mb-2">Pass Rate</h3>
+                <div class="stat-number" id="passRateValue">92.5%</div>
+                <div class="mt-2 text-xs text-gray-500">Target: 95%</div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div id="passRateBar" class="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full" style="width: 92.5%"></div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-gray-200">
+                    <p class="text-xs text-gray-600 font-mono"><strong>Formula:</strong></p>
+                    <p class="text-xs text-gray-500 font-mono mt-1">(Passed / Total Executed) × 100</p>
+                </div>
+            </div>
+            
+            <!-- Defect Density -->
+            <div class="glass-panel rounded-2xl p-6 metric-card">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="tooltip">
+                        <i class="fas fa-bug text-red-500 text-2xl"></i>
+                        <span class="tooltiptext">Defects per 1000 lines of code</span>
+                    </div>
+                    <span id="defectDensityTrend" class="text-sm font-semibold trend-down">
+                        <i class="fas fa-arrow-down"></i> 2.1%
+                    </span>
+                </div>
+                <h3 class="text-gray-600 text-sm font-semibold mb-2">Defect Density</h3>
+                <div class="stat-number" id="defectDensityValue">2.3</div>
+                <div class="mt-2 text-xs text-gray-500">Per 1K LOC</div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div id="defectDensityBar" class="bg-gradient-to-r from-yellow-400 to-red-600 h-2 rounded-full" style="width: 46%"></div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-gray-200">
+                    <p class="text-xs text-gray-600 font-mono"><strong>Formula:</strong></p>
+                    <p class="text-xs text-gray-500 font-mono mt-1">Total Defects / (LOC / 1000)</p>
+                </div>
+            </div>
+            
+            <!-- Test Coverage -->
+            <div class="glass-panel rounded-2xl p-6 metric-card">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="tooltip">
+                        <i class="fas fa-shield-alt text-blue-500 text-2xl"></i>
+                        <span class="tooltiptext">Percentage of code covered by tests</span>
+                    </div>
+                    <span id="coverageTrend" class="text-sm font-semibold trend-up">
+                        <i class="fas fa-arrow-up"></i> 3.8%
+                    </span>
+                </div>
+                <h3 class="text-gray-600 text-sm font-semibold mb-2">Test Coverage</h3>
+                <div class="stat-number" id="coverageValue">87.2%</div>
+                <div class="mt-2 text-xs text-gray-500">Target: 90%</div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div id="coverageBar" class="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full" style="width: 87.2%"></div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-gray-200">
+                    <p class="text-xs text-gray-600 font-mono"><strong>Formula:</strong></p>
+                    <p class="text-xs text-gray-500 font-mono mt-1">(Items Tested / Total Items) × 100</p>
+                </div>
+            </div>
+            
+            <!-- Automation Coverage -->
+            <div class="glass-panel rounded-2xl p-6 metric-card">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="tooltip">
+                        <i class="fas fa-robot text-purple-500 text-2xl"></i>
+                        <span class="tooltiptext">Percentage of tests that are automated</span>
+                    </div>
+                    <span id="automationTrend" class="text-sm font-semibold trend-up">
+                        <i class="fas fa-arrow-up"></i> 7.5%
+                    </span>
+                </div>
+                <h3 class="text-gray-600 text-sm font-semibold mb-2">Automation</h3>
+                <div class="stat-number" id="automationValue">75.8%</div>
+                <div class="mt-2 text-xs text-gray-500">Target: 80%</div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div id="automationBar" class="bg-gradient-to-r from-purple-400 to-purple-600 h-2 rounded-full" style="width: 75.8%"></div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-gray-200">
+                    <p class="text-xs text-gray-600 font-mono"><strong>Formula:</strong></p>
+                    <p class="text-xs text-gray-500 font-mono mt-1">(Automated Tests / Total Tests) × 100</p>
+                </div>
+            </div>
+            
+            <!-- Mean Time to Repair -->
+            <div class="glass-panel rounded-2xl p-6 metric-card">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="tooltip">
+                        <i class="fas fa-clock text-orange-500 text-2xl"></i>
+                        <span class="tooltiptext">Average time to fix a defect</span>
+                    </div>
+                    <span id="mttrTrend" class="text-sm font-semibold trend-down">
+                        <i class="fas fa-arrow-down"></i> 12%
+                    </span>
+                </div>
+                <h3 class="text-gray-600 text-sm font-semibold mb-2">MTTR</h3>
+                <div class="stat-number" id="mttrValue">4.2h</div>
+                <div class="mt-2 text-xs text-gray-500">Target: &lt;6h</div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div id="mttrBar" class="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full" style="width: 70%"></div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-gray-200">
+                    <p class="text-xs text-gray-600 font-mono"><strong>Formula:</strong></p>
+                    <p class="text-xs text-gray-500 font-mono mt-1">Σ Repair Times / Defects Fixed</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            
+            <!-- Test Execution Trend -->
+            <div class="glass-panel rounded-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-chart-line text-indigo-600 mr-3"></i>
+                        Test Execution Trend
+                    </h2>
+                    <select id="trendPeriod" onchange="updateTrendChart()" class="px-3 py-1 rounded-lg border border-gray-300 text-sm">
+                        <option value="7">Last 7 Days</option>
+                        <option value="30">Last 30 Days</option>
+                        <option value="90">Last 90 Days</option>
+                    </select>
+                </div>
+                <div class="chart-container">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Defect Distribution -->
+            <div class="glass-panel rounded-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-pie-chart text-purple-600 mr-3"></i>
+                        Defect by Severity
+                    </h2>
+                    <button onclick="toggleChartType()" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                        <i class="fas fa-sync-alt"></i> Toggle
+                    </button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="defectChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Metrics Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            
+            <!-- Test Status Breakdown -->
+            <div class="glass-panel rounded-2xl p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-tasks text-blue-600 mr-3"></i>
+                    Test Status
+                </h2>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="testStatusChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Bug Reopen Rate -->
+            <div class="glass-panel rounded-2xl p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-redo text-red-600 mr-3"></i>
+                    Bug Reopen Rate
+                </h2>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="bugReopenChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Test Execution Progress -->
+            <div class="glass-panel rounded-2xl p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-project-diagram text-green-600 mr-3"></i>
+                    Sprint Progress
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="font-semibold text-gray-700">Test Cases Planned</span>
+                            <span class="font-bold text-gray-900" id="plannedTests">450</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-indigo-400 to-indigo-600 h-3 rounded-full" style="width: 100%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="font-semibold text-gray-700">Executed</span>
+                            <span class="font-bold text-green-600" id="executedTests">387 (86%)</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full" style="width: 86%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="font-semibold text-gray-700">Passed</span>
+                            <span class="font-bold text-blue-600" id="passedTests">358 (92.5%)</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-blue-400 to-blue-600 h-3 rounded-full" style="width: 92.5%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="font-semibold text-gray-700">Failed</span>
+                            <span class="font-bold text-red-600" id="failedTests">29 (7.5%)</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-red-400 to-red-600 h-3 rounded-full" style="width: 7.5%"></div>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-gray-200">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm font-semibold text-gray-700">Overall Progress</span>
+                            <span class="text-2xl font-bold text-indigo-600">86%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table Section -->
+        <div class="glass-panel rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-table text-indigo-600 mr-3"></i>
+                    Test Execution Details
+                </h2>
+                <div class="flex space-x-2">
+                    <input type="text" id="searchInput" placeholder="Search..." onkeyup="filterTable()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <button onclick="exportTableData()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition-colors">
+                        <i class="fas fa-file-excel mr-2"></i>Export
+                    </button>
+                </div>
+            </div>
+            <div class="data-table overflow-x-auto">
+                <table id="testTable" class="w-full text-sm">
+                    <thead class="bg-gray-100 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Test ID</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Test Case</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Priority</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Branch</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Score</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Executed By</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="testTableBody" class="divide-y divide-gray-200">
+                        <!-- Data will be populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="glass-panel rounded-2xl p-8 max-w-2xl w-full mx-4">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Upload Test Data</h2>
+                <button onclick="closeUploadModal()" class="text-gray-500 hover:text-gray-700 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div id="uploadZone" class="upload-zone rounded-xl p-12 text-center cursor-pointer" 
+                 onclick="document.getElementById('fileInput').click()"
+                 ondragover="handleDragOver(event)"
+                 ondragleave="handleDragLeave(event)"
+                 ondrop="handleDrop(event)">
+                <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4"></i>
+                <p class="text-lg font-semibold text-gray-700 mb-2">Drag & Drop or Click to Upload</p>
+                <p class="text-sm text-gray-500">Supports CSV, XLSX, and JSON files</p>
+                <input type="file" id="fileInput" accept=".csv,.xlsx,.json" class="hidden" onchange="handleFileSelect(event)">
+            </div>
+            
+            <div class="mt-6">
+                <h3 class="font-semibold text-gray-700 mb-3">Sample Data Format:</h3>
+                <div class="bg-gray-50 rounded-lg p-4 text-xs font-mono overflow-x-auto">
+                    <pre>{
+  "testId": "TC-001",
+  "testCase": "Login Functionality",
+  "status": "Pass",
+  "priority": "High",
+  "branch": "main-branch",
+  "score": 95,
+  "executedBy": "John Doe",
+  "date": "2026-01-06",
+  "duration": "2.5"
+}</pre>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end space-x-3">
+                <button onclick="downloadSampleData()" class="px-6 py-2 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-all">
+                    <i class="fas fa-download mr-2"></i>Download Sample
+                </button>
+                <button onclick="closeUploadModal()" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let trendChart, defectChart, testStatusChart, bugReopenChart;
+        let currentChartType = 'pie';
+        let testData = [];
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            loadSampleData();
+            updateLastUpdate();
+            setInterval(updateLastUpdate, 60000); // Update every minute
+        });
+
+        // Calculate overall dashboard health score
+        function calculateHealthScore() {
+            // Extract metric values
+            const passRate = parseFloat(document.getElementById('passRateValue').textContent) || 0;
+            const coverage = parseFloat(document.getElementById('coverageValue').textContent) || 0;
+            const automation = parseFloat(document.getElementById('automationValue').textContent) || 0;
+            const defectDensity = parseFloat(document.getElementById('defectDensityValue').textContent) || 0;
+            const mttrHours = parseFloat(document.getElementById('mttrValue').textContent) || 0;
+            
+            // Weighted calculation
+            // Pass Rate: 30%, Coverage: 25%, Automation: 20%, Defect Density: 15%, MTTR: 10%
+            const passRateScore = passRate * 0.30;
+            const coverageScore = coverage * 0.25;
+            const automationScore = automation * 0.20;
+            
+            // Defect Density (lower is better, normalized - assuming target is < 5 per 1K LOC)
+            const defectScore = Math.max(0, (100 - (defectDensity * 10))) * 0.15;
+            
+            // MTTR (lower is better, normalized - assuming target is < 10 hours)
+            const mttrScore = Math.max(0, (100 - (mttrHours * 10))) * 0.10;
+            
+            // Total score
+            const totalScore = Math.round(passRateScore + coverageScore + automationScore + defectScore + mttrScore);
+            const finalScore = Math.min(100, Math.max(0, totalScore));
+            
+            // Update display
+            const scoreElement = document.getElementById('healthScore');
+            scoreElement.textContent = finalScore;
+            
+            // Update color based on score
+            let gradient = '';
+            if (finalScore >= 85) {
+                gradient = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+            } else if (finalScore >= 70) {
+                gradient = 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)';
+            } else {
+                gradient = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+            }
+            
+            scoreElement.style.background = gradient;
+            scoreElement.style.webkitBackgroundClip = 'text';
+            scoreElement.style.webkitTextFillColor = 'transparent';
+            scoreElement.style.backgroundClip = 'text';
+            
+            return finalScore;
+        }
+
+        function updateLastUpdate() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleString();
+        }
+
+        // Initialize all charts
+        function initializeCharts() {
+            // Test Execution Trend Chart
+            const trendCtx = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7'],
+                    datasets: [{
+                        label: 'Pass Rate %',
+                        data: [85, 87, 89, 88, 91, 90, 92.5],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Test Coverage %',
+                        data: [78, 80, 82, 83, 85, 86, 87.2],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Automation %',
+                        data: [65, 68, 70, 71, 73, 74, 75.8],
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Defect Distribution Chart
+            const defectCtx = document.getElementById('defectChart').getContext('2d');
+            defectChart = new Chart(defectCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['Critical', 'High', 'Medium', 'Low'],
+                    datasets: [{
+                        data: [5, 15, 42, 38],
+                        backgroundColor: [
+                            '#ef4444',
+                            '#f97316',
+                            '#fbbf24',
+                            '#84cc16'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return label + ': ' + value + ' (' + percentage + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Test Status Chart
+            const statusCtx = document.getElementById('testStatusChart').getContext('2d');
+            testStatusChart = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Passed', 'Failed', 'Blocked', 'Pending'],
+                    datasets: [{
+                        data: [358, 29, 12, 51],
+                        backgroundColor: [
+                            '#10b981',
+                            '#ef4444',
+                            '#f59e0b',
+                            '#6b7280'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Bug Reopen Rate Chart
+            const bugReopenCtx = document.getElementById('bugReopenChart').getContext('2d');
+            bugReopenChart = new Chart(bugReopenCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Reopen Rate %',
+                        data: [8, 12, 7, 5, 4, 3],
+                        backgroundColor: [
+                            '#ef4444',
+                            '#ef4444',
+                            '#f59e0b',
+                            '#f59e0b',
+                            '#10b981',
+                            '#10b981'
+                        ],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load sample data
+        function loadSampleData() {
+            testData = [
+                { testId: 'TC-001', testCase: 'User Login - Valid Credentials', status: 'Pass', priority: 'High', branch: 'main-branch', score: 95, executedBy: 'John Doe', date: '2026-01-06', duration: '2.5' },
+                { testId: 'TC-002', testCase: 'User Login - Invalid Password', status: 'Pass', priority: 'High', branch: 'main-branch', score: 92, executedBy: 'Jane Smith', date: '2026-01-06', duration: '1.8' },
+                { testId: 'TC-003', testCase: 'Dashboard Load Time', status: 'Fail', priority: 'Critical', branch: 'nimitha-branch', score: 45, executedBy: 'Nimitha', date: '2026-01-06', duration: '3.2' },
+                { testId: 'TC-004', testCase: 'Data Export Functionality', status: 'Pass', priority: 'Medium', branch: 'main-branch', score: 88, executedBy: 'Alice Johnson', date: '2026-01-06', duration: '4.5' },
+                { testId: 'TC-005', testCase: 'Search Filter Results', status: 'Pass', priority: 'Medium', branch: 'Pavithra-branch', score: 78, executedBy: 'Pavithra', date: '2026-01-05', duration: '2.1' },
+                { testId: 'TC-006', testCase: 'Form Validation', status: 'Fail', priority: 'High', branch: 'Pavithra-branch', score: 52, executedBy: 'Pavithra', date: '2026-01-05', duration: '3.8' },
+                { testId: 'TC-007', testCase: 'API Response Time', status: 'Pass', priority: 'Critical', branch: 'main-branch', score: 96, executedBy: 'John Doe', date: '2026-01-05', duration: '1.5' },
+                { testId: 'TC-008', testCase: 'Mobile Responsiveness', status: 'Pass', priority: 'High', branch: 'main-branch', score: 91, executedBy: 'Alice Johnson', date: '2026-01-05', duration: '5.2' },
+                { testId: 'TC-009', testCase: 'Browser Compatibility - Chrome', status: 'Pass', priority: 'Medium', branch: 'ManikandanSelvam-branch', score: 85, executedBy: 'ManikandanSelvam', date: '2026-01-04', duration: '2.9' },
+                { testId: 'TC-010', testCase: 'Browser Compatibility - Firefox', status: 'Fail', priority: 'Medium', branch: 'ManikandanSelvam-branch', score: 58, executedBy: 'ManikandanSelvam', date: '2026-01-04', duration: '3.1' },
+                { testId: 'TC-011', testCase: 'Database Connection Pool', status: 'Pass', priority: 'Critical', branch: 'main-branch', score: 94, executedBy: 'John Doe', date: '2026-01-04', duration: '2.7' },
+                { testId: 'TC-012', testCase: 'Security - XSS Prevention', status: 'Fail', priority: 'Critical', branch: 'Anusha-branch', score: 38, executedBy: 'Anusha', date: '2026-01-04', duration: '4.1' },
+                { testId: 'TC-013', testCase: 'Session Timeout', status: 'Pass', priority: 'High', branch: 'main-branch', score: 89, executedBy: 'Bob Wilson', date: '2026-01-03', duration: '3.5' },
+                { testId: 'TC-014', testCase: 'Pagination Controls', status: 'Fail', priority: 'Low', branch: 'Anusha-branch', score: 42, executedBy: 'Anusha', date: '2026-01-03', duration: '1.9' },
+                { testId: 'TC-015', testCase: 'File Upload - Large Files', status: 'Pass', priority: 'Medium', branch: 'main-branch', score: 87, executedBy: 'John Doe', date: '2026-01-03', duration: '6.2' }
+            ];
+            
+            populateTable(testData);
+        }
+
+        // Populate table
+        function populateTable(data) {
+            const tbody = document.getElementById('testTableBody');
+            tbody.innerHTML = '';
+            
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50 transition-colors';
+                
+                let statusBadge = '';
+                if (row.status === 'Pass') {
+                    statusBadge = '<span class="badge badge-success">Pass</span>';
+                } else if (row.status === 'Fail') {
+                    statusBadge = '<span class="badge badge-danger">Fail</span>';
+                } else {
+                    statusBadge = '<span class="badge badge-warning">' + row.status + '</span>';
+                }
+                
+                let priorityBadge = '';
+                if (row.priority === 'Critical') {
+                    priorityBadge = '<span class="badge badge-danger">Critical</span>';
+                } else if (row.priority === 'High') {
+                    priorityBadge = '<span class="badge badge-warning">High</span>';
+                } else {
+                    priorityBadge = '<span class="badge" style="background-color: #e0e7ff; color: #3730a3;">' + row.priority + '</span>';
+                }
+                
+                // Score badge with color coding
+                const score = row.score || 0;
+                let scoreBadge = '';
+                let scoreColor = '';
+                if (score >= 85) {
+                    scoreColor = 'background: linear-gradient(135deg, #10b981, #059669); color: white;';
+                } else if (score >= 70) {
+                    scoreColor = 'background: linear-gradient(135deg, #fbbf24, #f59e0b); color: white;';
+                } else if (score > 0) {
+                    scoreColor = 'background: linear-gradient(135deg, #ef4444, #dc2626); color: white;';
+                } else {
+                    scoreColor = 'background: #ef4444; color: white;';
+                }
+                scoreBadge = '<div class="inline-flex items-center justify-center w-12 h-12 rounded-full font-bold text-lg" style="' + scoreColor + '">' + score + '</div>';
+                
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-mono text-xs">${row.testId}</td>
+                    <td class="px-4 py-3">${row.testCase}</td>
+                    <td class="px-4 py-3">${statusBadge}</td>
+                    <td class="px-4 py-3">${priorityBadge}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">${row.branch || 'N/A'}</td>
+                    <td class="px-4 py-3">${scoreBadge}</td>
+                    <td class="px-4 py-3">${row.executedBy}</td>
+                    <td class="px-4 py-3">${row.date}</td>
+                    <td class="px-4 py-3">${row.duration}s</td>
+                `;
+                
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Filter table
+        function filterTable() {
+            const searchValue = document.getElementById('searchInput').value.toLowerCase();
+            const filteredData = testData.filter(row => {
+                return Object.values(row).some(val => 
+                    val.toString().toLowerCase().includes(searchValue)
+                );
+            });
+            populateTable(filteredData);
+        }
+
+        // Toggle chart type
+        function toggleChartType() {
+            defectChart.destroy();
+            const ctx = document.getElementById('defectChart').getContext('2d');
+            
+            if (currentChartType === 'pie') {
+                currentChartType = 'bar';
+                defectChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Critical', 'High', 'Medium', 'Low'],
+                        datasets: [{
+                            label: 'Defect Count',
+                            data: [5, 15, 42, 38],
+                            backgroundColor: ['#ef4444', '#f97316', '#fbbf24', '#84cc16'],
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            } else {
+                currentChartType = 'pie';
+                defectChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Critical', 'High', 'Medium', 'Low'],
+                        datasets: [{
+                            data: [5, 15, 42, 38],
+                            backgroundColor: ['#ef4444', '#f97316', '#fbbf24', '#84cc16'],
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Update trend chart based on period
+        function updateTrendChart() {
+            const period = document.getElementById('trendPeriod').value;
+            // In a real application, this would fetch data for the selected period
+            // For now, we'll just update with sample data
+            trendChart.update();
+        }
+
+        // Modal functions
+        function showUploadModal() {
+            document.getElementById('uploadModal').classList.add('active');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').classList.remove('active');
+        }
+
+        // File upload handlers
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('uploadZone').classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('uploadZone').classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('uploadZone').classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        // Process uploaded file
+        function processFile(file) {
+            const fileType = file.name.split('.').pop().toLowerCase();
+            
+            if (fileType === 'csv') {
+                Papa.parse(file, {
+                    header: true,
+                    complete: function(results) {
+                        testData = results.data.filter(row => row.testId); // Filter empty rows
+                        populateTable(testData);
+                        updateMetrics(testData);
+                        closeUploadModal();
+                        showNotification('Data uploaded successfully!', 'success');
+                    },
+                    error: function(error) {
+                        showNotification('Error parsing CSV: ' + error.message, 'error');
+                    }
+                });
+            } else if (fileType === 'xlsx') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                        testData = jsonData;
+                        populateTable(testData);
+                        updateMetrics(testData);
+                        closeUploadModal();
+                        showNotification('Data uploaded successfully!', 'success');
+                    } catch (error) {
+                        showNotification('Error parsing XLSX: ' + error.message, 'error');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (fileType === 'json') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const jsonData = JSON.parse(e.target.result);
+                        testData = Array.isArray(jsonData) ? jsonData : [jsonData];
+                        populateTable(testData);
+                        updateMetrics(testData);
+                        closeUploadModal();
+                        showNotification('Data uploaded successfully!', 'success');
+                    } catch (error) {
+                        showNotification('Error parsing JSON: ' + error.message, 'error');
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                showNotification('Unsupported file type. Please use CSV, XLSX, or JSON.', 'error');
+            }
+        }
+
+        // Update metrics based on uploaded data
+        function updateMetrics(data) {
+            if (data.length === 0) return;
+            
+            // Calculate pass rate
+            const passedTests = data.filter(t => t.status === 'Pass').length;
+            const totalTests = data.length;
+            const passRate = ((passedTests / totalTests) * 100).toFixed(1);
+            
+            document.getElementById('passRateValue').textContent = passRate + '%';
+            document.getElementById('passRateBar').style.width = passRate + '%';
+            
+            // Update other metrics as needed
+            document.getElementById('plannedTests').textContent = totalTests;
+            document.getElementById('executedTests').textContent = totalTests + ' (100%)';
+            document.getElementById('passedTests').textContent = passedTests + ' (' + passRate + '%)';
+            
+            const failedTests = data.filter(t => t.status === 'Fail').length;
+            const failRate = ((failedTests / totalTests) * 100).toFixed(1);
+            document.getElementById('failedTests').textContent = failedTests + ' (' + failRate + '%)';
+        }
+
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-20 right-6 px-6 py-4 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            } text-white font-semibold flex items-center space-x-3`;
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} text-xl"></i>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Export functions
+        function exportDashboard() {
+            // Create a comprehensive export of all dashboard data
+            const exportData = {
+                metrics: {
+                    passRate: document.getElementById('passRateValue').textContent,
+                    defectDensity: document.getElementById('defectDensityValue').textContent,
+                    coverage: document.getElementById('coverageValue').textContent,
+                    automation: document.getElementById('automationValue').textContent,
+                    mttr: document.getElementById('mttrValue').textContent
+                },
+                testData: testData,
+                exportDate: new Date().toISOString()
+            };
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'qa-dashboard-export-' + new Date().toISOString().split('T')[0] + '.json';
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification('Dashboard data exported successfully!', 'success');
+        }
+
+        function exportTableData() {
+            const ws = XLSX.utils.json_to_sheet(testData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Test Data');
+            XLSX.writeFile(wb, 'test-execution-data-' + new Date().toISOString().split('T')[0] + '.xlsx');
+            
+            showNotification('Table data exported successfully!', 'success');
+        }
+
+        function downloadSampleData() {
+            const sampleData = [
+                { testId: 'TC-001', testCase: 'Login Functionality', status: 'Pass', priority: 'High', branch: 'main-branch', score: 95, executedBy: 'John Doe', date: '2026-01-06', duration: '2.5' },
+                { testId: 'TC-002', testCase: 'Dashboard Load', status: 'Fail', priority: 'Critical', branch: 'nimitha-branch', score: 45, executedBy: 'Nimitha', date: '2026-01-06', duration: '3.2' },
+                { testId: 'TC-003', testCase: 'Data Export', status: 'Pass', priority: 'Medium', branch: 'main-branch', score: 88, executedBy: 'Alice Johnson', date: '2026-01-05', duration: '4.1' }
+            ];
+            
+            const ws = XLSX.utils.json_to_sheet(sampleData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sample Data');
+            XLSX.writeFile(wb, 'sample-test-data.xlsx');
+            
+            showNotification('Sample data downloaded!', 'success');
+        }
+
+        function resetDashboard() {
+            if (confirm('Are you sure you want to reset the dashboard to default values?')) {
+                location.reload();
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('uploadModal');
+            if (event.target === modal) {
+                closeUploadModal();
+            }
+        }
+    </script>
+</body>
+</html>
