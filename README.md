@@ -8,7 +8,7 @@
 
 ## 📋 Overview
 
-The **QA Intelligence Dashboard** is a comprehensive, self-contained HTML dashboard designed to help Test Directors and QA Teams track, analyze, and visualize essential quality metrics and KPIs across projects. Based on industry best practices from BrowserStack's Essential QA Metrics guide, this dashboard provides real-time insights into testing effectiveness, defect trends, and overall software quality.
+The **QA Intelligence Dashboard** is a comprehensive, self-contained HTML dashboard designed to help Test Directors, QA Managers and QA Teams track, analyze, and visualize essential quality metrics and KPIs across projects. Based on industry best practices from BrowserStack's Essential QA Metrics guide, this dashboard provides real-time insights into testing effectiveness, defect trends, and overall software quality.
 
 ### **Key Benefits**
 - ✅ **Zero Setup Required** - Single HTML file, works offline
